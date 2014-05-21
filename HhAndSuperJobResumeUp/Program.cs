@@ -79,6 +79,8 @@ namespace HhAndSuperJobResumeUp
                     element.Click();
                     element = _driver.FindElement(By.LinkText("Руководитель отдела разработки"));
                     element.Click();
+                    element = _driver.FindElement(By.ClassName("HH-Resume-Touch-Button"));
+                    element.Click();
                 }
             }
             catch
@@ -108,9 +110,11 @@ namespace HhAndSuperJobResumeUp
                         "https://www.superjob.ru/sn/redirect/google?both=1&state=http%253A%252F%252Fwww.superjob.ru%252F");
 
                 if (_helper.Auth())
+                {
                     Thread.Sleep(2000);
-                _driver.FindElement(By.LinkText("Моё резюме")).Click();
-                _driver.FindElement(By.LinkText("обновить дату публикации")).Click();
+                    _driver.FindElement(By.LinkText("Моё резюме")).Click();
+                    _driver.FindElement(By.LinkText("обновить дату публикации")).Click();
+                }
             }
             catch
             {
