@@ -1,21 +1,18 @@
-﻿using System;
-using System.Diagnostics.Contracts;
-using System.Linq;
+﻿using System.Linq;
 using System.Threading;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 
 namespace HhAndSuperJobResumeUp
 {
-    public interface IAuth
+    public interface IHrService
     {
-        bool IsAuth { get; }
-        bool Refresh();
+        void Refresh();
     }
 
     public interface IAuthHelper
     {
-        bool Auth(string page);
+        bool Auth();
     }
 
     public class Google : IAuthHelper
@@ -31,19 +28,16 @@ namespace HhAndSuperJobResumeUp
             _password = password;
         }
 
-        public bool Auth(string page)
+        public bool Auth()
         {
             try
             {
-
                 IWebElement element = _driver.FindElement(By.Id("Email"));
                 element.SendKeys(_login);
                 element = _driver.FindElement(By.Id("Passwd"));
                 element.SendKeys(_password);
                 element = _driver.FindElement(By.Id("signIn"));
                 element.Click();
-               if (_driver.CurrentWindowHandle!=page)
-                    return false;
             }
             catch
             {
@@ -52,7 +46,8 @@ namespace HhAndSuperJobResumeUp
             return true;
         }
     }
-    public class Hh
+
+    public class Hh : IHrService
     {
         private readonly IWebDriver _driver;
         private readonly IAuthHelper _helper;
@@ -61,73 +56,64 @@ namespace HhAndSuperJobResumeUp
         {
             _driver = driver;
             _helper = helper;
-
-
         }
 
 
         public void Refresh()
         {
-            _driver.Navigate().GoToUrl("http://www.hh.ru");
-            IWebElement element = _driver.FindElement(By.LinkText("Вход в личный кабинет"));
-            element.Click();
-            element = _driver.FindElement(By.ClassName("button-flat_gplus"));
-            var parentPage = _driver.CurrentWindowHandle;
-            element.Click();
-            var newPage = _driver.WindowHandles.Last();
-            _driver.SwitchTo().Window(newPage);
-            if (_helper.Auth(parentPage))
+            try
             {
-                Thread.Sleep(2000);
-                _driver.FindElement(By.LinkText("Мои резюме")).Click();
-                _driver.FindElement(By.LinkText("Руководитель отдела разработки")).Click(); 
-                
-                
+                _driver.Navigate().GoToUrl("http://www.hh.ru");
+                IWebElement element = _driver.FindElement(By.LinkText("Вход в личный кабинет"));
+                element.Click();
+                element = _driver.FindElement(By.ClassName("button-flat_gplus"));
+                string parentPage = _driver.CurrentWindowHandle;
+                element.Click();
+                string newPage = _driver.WindowHandles.Last();
+                _driver.SwitchTo().Window(newPage);
+                if (_helper.Auth())
+                {
+                    Thread.Sleep(2000);
+                    _driver.SwitchTo().Window(parentPage);
+                    element = _driver.FindElement(By.LinkText("Мои резюме"));
+                    element.Click();
+                    element = _driver.FindElement(By.LinkText("Руководитель отдела разработки"));
+                    element.Click();
+                }
+            }
+            catch
+            {
+
             }
         }
     }
 
-    public class SuperJob : IAuth
+    public class SuperJob : IHrService
     {
         private readonly IWebDriver _driver;
+        private readonly IAuthHelper _helper;
 
-        public SuperJob(IWebDriver driver, string login, string password)
+        public SuperJob(IWebDriver driver, IAuthHelper helper)
         {
             _driver = driver;
-            try
-            {
-                driver.Navigate()
-                    .GoToUrl(
-                        "https://www.superjob.ru/sn/redirect/google?both=1&state=http%253A%252F%252Fwww.superjob.ru%252F");
-                IWebElement element = driver.FindElement(By.Id("Email"));
-                element.SendKeys(login);
-                element = driver.FindElement(By.Id("Passwd"));
-                element.SendKeys(password);
-                element = driver.FindElement(By.Id("signIn"));
-                element.Click();
-                IsAuth = true;
-            }
-            catch (Exception)
-            {
-                IsAuth = false;
-            }
+            _helper = helper;
         }
 
-        public bool IsAuth { get; private set; }
-
-        public bool Refresh()
+        public void Refresh()
         {
-            Contract.Requires(IsAuth == true);
-            Thread.Sleep(2000);
             try
             {
+                _driver.Navigate()
+                    .GoToUrl(
+                        "https://www.superjob.ru/sn/redirect/google?both=1&state=http%253A%252F%252Fwww.superjob.ru%252F");
+
+                if (_helper.Auth())
+                    Thread.Sleep(2000);
                 _driver.FindElement(By.LinkText("Моё резюме")).Click();
                 _driver.FindElement(By.LinkText("обновить дату публикации")).Click();
-                return true;
             }
             catch
             {
-                return false;
             }
         }
     }
@@ -136,16 +122,29 @@ namespace HhAndSuperJobResumeUp
     {
         private static void Main(string[] args)
         {
-            //var driver = new ChromeDriver();
-            //var service = new SuperJob(new ChromeDriver(), "menozgrande", "ghjf");
-            //if (service.IsAuth) service.Refresh();
-            //driver.Quit();
+            var handle1 = new ManualResetEvent(false);
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                var driver = new ChromeDriver();
+                var helper = new Google(driver, "menozgrande", "..");
+                IHrService service = new SuperJob(driver, helper);
+                service.Refresh();
+                driver.Quit();
+                handle1.Set();
+            }, null);
 
-            var driver = new ChromeDriver();
-            var helper = new Google(driver, "menozgrande", "...");
-            var service = new Hh(driver, helper);
-            service.Refresh();
-            driver.Quit();
+            var handle2 = new ManualResetEvent(false);
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                var driverHr = new ChromeDriver();
+                var helperGo = new Google(driverHr, "menozgrande", "..");
+                var hrService = new Hh(driverHr, helperGo);
+                hrService.Refresh();
+                handle2.Set();
+            }, null);
+            
+            handle1.WaitOne();
+            handle2.WaitOne();
         }
     }
 }
