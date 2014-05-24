@@ -61,31 +61,24 @@ namespace HhAndSuperJobResumeUp
 
         public void Refresh()
         {
-            try
+            _driver.Navigate().GoToUrl("http://www.hh.ru");
+            IWebElement element = _driver.FindElement(By.LinkText("Вход в личный кабинет"));
+            element.Click();
+            element = _driver.FindElement(By.ClassName("button-flat_gplus"));
+            string parentPage = _driver.CurrentWindowHandle;
+            element.Click();
+            string newPage = _driver.WindowHandles.Last();
+            _driver.SwitchTo().Window(newPage);
+            if (_helper.Auth())
             {
-                _driver.Navigate().GoToUrl("http://www.hh.ru");
-                IWebElement element = _driver.FindElement(By.LinkText("Вход в личный кабинет"));
+                Thread.Sleep(2000);
+                _driver.SwitchTo().Window(parentPage);
+                element = _driver.FindElement(By.LinkText("Мои резюме"));
                 element.Click();
-                element = _driver.FindElement(By.ClassName("button-flat_gplus"));
-                string parentPage = _driver.CurrentWindowHandle;
+                element = _driver.FindElement(By.LinkText("Руководитель отдела разработки"));
                 element.Click();
-                string newPage = _driver.WindowHandles.Last();
-                _driver.SwitchTo().Window(newPage);
-                if (_helper.Auth())
-                {
-                    Thread.Sleep(2000);
-                    _driver.SwitchTo().Window(parentPage);
-                    element = _driver.FindElement(By.LinkText("Мои резюме"));
-                    element.Click();
-                    element = _driver.FindElement(By.LinkText("Руководитель отдела разработки"));
-                    element.Click();
-                    element = _driver.FindElement(By.ClassName("HH-Resume-Touch-Button"));
-                    element.Click();
-                }
-            }
-            catch
-            {
-
+                element = _driver.FindElement(By.ClassName("HH-Resume-Touch-Button"));
+                element.Click();
             }
         }
     }
@@ -103,21 +96,15 @@ namespace HhAndSuperJobResumeUp
 
         public void Refresh()
         {
-            try
-            {
-                _driver.Navigate()
-                    .GoToUrl(
-                        "https://www.superjob.ru/sn/redirect/google?both=1&state=http%253A%252F%252Fwww.superjob.ru%252F");
+            _driver.Navigate()
+                .GoToUrl(
+                    "https://www.superjob.ru/sn/redirect/google?both=1&state=http%253A%252F%252Fwww.superjob.ru%252F");
 
-                if (_helper.Auth())
-                {
-                    Thread.Sleep(2000);
-                    _driver.FindElement(By.LinkText("Моё резюме")).Click();
-                    _driver.FindElement(By.LinkText("обновить дату публикации")).Click();
-                }
-            }
-            catch
+            if (_helper.Auth())
             {
+                Thread.Sleep(2000);
+                _driver.FindElement(By.LinkText("Моё резюме")).Click();
+                _driver.FindElement(By.LinkText("обновить дату публикации")).Click();
             }
         }
     }
@@ -130,23 +117,39 @@ namespace HhAndSuperJobResumeUp
             ThreadPool.QueueUserWorkItem(delegate
             {
                 var driver = new ChromeDriver();
-                var helper = new Google(driver, "menozgrande", "..");
-                IHrService service = new SuperJob(driver, helper);
-                service.Refresh();
-                driver.Quit();
-                handle1.Set();
+
+                try
+                {
+                    var helper = new Google(driver, "menozgrande", "..");
+                    IHrService service = new SuperJob(driver, helper);
+                    service.Refresh();
+                }
+                catch { }
+                finally
+                {
+                    driver.Quit();
+                    handle1.Set();
+                }
             }, null);
 
             var handle2 = new ManualResetEvent(false);
             ThreadPool.QueueUserWorkItem(delegate
             {
                 var driverHr = new ChromeDriver();
-                var helperGo = new Google(driverHr, "menozgrande", "..");
-                var hrService = new Hh(driverHr, helperGo);
-                hrService.Refresh();
-                handle2.Set();
+                try
+                {
+                    var helperGo = new Google(driverHr, "menozgrande", "..");
+                    IHrService hrService = new Hh(driverHr, helperGo);
+                    hrService.Refresh();
+                }
+                catch { }
+                finally
+                {
+                    driverHr.Quit();
+                    handle2.Set();
+                }
             }, null);
-            
+
             handle1.WaitOne();
             handle2.WaitOne();
         }
